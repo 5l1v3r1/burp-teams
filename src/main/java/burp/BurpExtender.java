@@ -52,25 +52,25 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
         callbacks.registerExtensionStateListener(this);
         SwingUtilities.invokeLater(new Runnable() {
             public void run() {
+                final int componentWidth = 220;
                 stdout.println("Burp Teams v0.1");
                 isNativeTheme = NATIVE_LOOK_AND_FEELS.contains(UIManager.getLookAndFeel().getID());
                 isDarkTheme = DARK_THEMES.contains(UIManager.getLookAndFeel().getID());
                 panel = new JPanel();
                 panel.setLayout(new FlowLayout());
-                //panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
                 GridLayout configureGrid = new GridLayout(4, 2);
                 JPanel configurePanel = new JPanel(configureGrid);
                 JLabel serverAddressLabel = new JLabel("Server address");
-                serverAddressLabel.setPreferredSize(new Dimension(200, 25));
+                serverAddressLabel.setPreferredSize(new Dimension(componentWidth, 25));
                 JTextField serverAddress = new JTextField();
-                serverAddress.setPreferredSize(new Dimension(200, 25));
+                serverAddress.setPreferredSize(new Dimension(componentWidth, 25));
                 serverAddress.setText("http://localhost:3000");
                 configurePanel.add(serverAddressLabel);
                 configurePanel.add(serverAddress);
                 JLabel nameLabel = new JLabel("Your name");
-                nameLabel.setPreferredSize(new Dimension(200, 25));
+                nameLabel.setPreferredSize(new Dimension(componentWidth, 25));
                 JTextField name = new JTextField();
-                name.setPreferredSize(new Dimension(200, 25));
+                name.setPreferredSize(new Dimension(componentWidth, 25));
                 configurePanel.add(nameLabel);
                 configurePanel.add(name);
                 JPanel configureFieldset = new JPanel();
@@ -155,10 +155,10 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                 createTeamFieldset.setBorder(BorderFactory.createTitledBorder("Create Team"));
                 createTeamFieldset.setPreferredSize(new Dimension(600, 170));
                 JLabel teamNameLabel = new JLabel("Team name");
-                teamNameLabel.setPreferredSize(new Dimension(200, 25));
+                teamNameLabel.setPreferredSize(new Dimension(componentWidth, 25));
                 newTeamName = new JTextField();
                 newTeamName.setEnabled(false);
-                newTeamName.setPreferredSize(new Dimension(200, 25));
+                newTeamName.setPreferredSize(new Dimension(componentWidth, 25));
                 teamPanel.add(teamNameLabel);
                 teamPanel.add(newTeamName);
                 createTeamBtn = new JButton("Create team");
@@ -199,14 +199,16 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                 myTeamFieldset.setBorder(BorderFactory.createTitledBorder("My Teams"));
                 myTeamFieldset.setPreferredSize(new Dimension(600, 170));
                 myTeamIDLabel = new JLabel();
-                myTeamIDLabel.setPreferredSize(new Dimension(200, 25));
+                myTeamIDLabel.setPreferredSize(new Dimension(componentWidth, 25));
                 JLabel myTeamLabel = new JLabel("My teams");
                 myTeamsCombo = new JComboBox();
                 myTeamsCombo.addActionListener(new ActionListener() {
                     @Override
                     public void actionPerformed(ActionEvent e) {
-                        String team = myTeamsCombo.getSelectedItem().toString();
-                        myTeamIDLabel.setText(myTeams.get(team));
+                        if(myTeamsCombo.getItemCount() > 0) {
+                            String team = myTeamsCombo.getSelectedItem().toString();
+                            myTeamIDLabel.setText(myTeams.get(team));
+                        }
                     }
                 });
                 updateMyTeams();
@@ -239,18 +241,18 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                 joinTeamFieldset.setBorder(BorderFactory.createTitledBorder("Join Team"));
                 joinTeamFieldset.setPreferredSize(new Dimension(600, 170));
                 JLabel joinTeamNameLabel = new JLabel("Team name");
-                joinTeamNameLabel.setPreferredSize(new Dimension(200, 25));
+                joinTeamNameLabel.setPreferredSize(new Dimension(componentWidth, 25));
                 joinTeamName = new JTextField();
                 joinTeamName.setEnabled(false);
-                joinTeamName.setPreferredSize(new Dimension(200, 25));
+                joinTeamName.setPreferredSize(new Dimension(componentWidth, 25));
                 joinTeamPanel.add(joinTeamNameLabel);
                 joinTeamPanel.add(joinTeamName);
 
                 JLabel teamIDLabel = new JLabel("Team ID");
-                teamIDLabel.setPreferredSize(new Dimension(200, 25));
+                teamIDLabel.setPreferredSize(new Dimension(componentWidth, 25));
                 joinTeamIDText = new JTextField();
                 joinTeamIDText.setEnabled(false);
-                joinTeamIDText.setPreferredSize(new Dimension(200, 25));
+                joinTeamIDText.setPreferredSize(new Dimension(componentWidth, 25));
                 joinTeamPanel.add(teamIDLabel);
                 joinTeamPanel.add(joinTeamIDText);
 
@@ -290,9 +292,9 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
     }
     private void updateMyTeams() {
         myTeamsCombo.removeAllItems();
-        for(Map.Entry<String, String> e : myTeams.entrySet()) {
-            String teamName = e.getKey();
-            String teamID = e.getValue();
+        for(Map.Entry<String, String> entry : myTeams.entrySet()) {
+            String teamName = entry.getKey();
+            String teamID = entry.getValue();
             myTeamsCombo.addItem(teamName);
         }
     }
