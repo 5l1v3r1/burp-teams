@@ -15,7 +15,7 @@ import java.io.PrintWriter;
 import java.net.URISyntaxException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.util.Arrays;
+import java.util.*;
 import java.util.List;
 
 public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListener {
@@ -35,6 +35,12 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
     private JLabel teamStatus;
     private JButton createTeamBtn;
     private JTextField newTeamName;
+    private JButton joinTeamBtn;
+    private JTextField joinTeamIDText;
+    private JTextField joinTeamName;
+    private TreeMap<String, String> myTeams = new TreeMap<>();
+    private JComboBox myTeamsCombo;
+    private JLabel myTeamIDLabel;
 
     @Override
     public void registerExtenderCallbacks(final IBurpExtenderCallbacks callbacks) {
@@ -104,6 +110,9 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                             @Override
                             public void call(Object... args) {
                                 connect();
+                                if(socket.connected()) {
+                                    socket.emit("set name", name.getText());
+                                }
                             }
 
                         }).on("event", new Emitter.Listener() {
@@ -156,9 +165,13 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                 createTeamBtn.addActionListener(new ActionListener() {
                     @Override
                     public void actionPerformed(ActionEvent e) {
+                        if(newTeamName.getText().length() == 0) {
+                            teamStatus.setText("Please enter a team name");
+                            return;
+                        }
                         String teamKey = generateTeamKey();
                         String teamName = newTeamName.getText();
-                        teamStatus.setText("Copied team ID to clipboard");
+                        teamStatus.setText("Copied team ID to clipboard and joined");
                         newTeamName.setText("");
                         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
                         clipboard.setContents(new StringSelection(teamKey), null);
@@ -178,14 +191,116 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                 teamPanel.add(teamStatus);
                 createTeamFieldset.add(teamPanel);
                 panel.add(createTeamFieldset);
+
+
+                GridLayout myTeamGrid = new GridLayout(2,2);
+                JPanel myTeamPanel = new JPanel(myTeamGrid);
+                JPanel myTeamFieldset = new JPanel();
+                myTeamFieldset.setBorder(BorderFactory.createTitledBorder("My Teams"));
+                myTeamFieldset.setPreferredSize(new Dimension(600, 170));
+                myTeamIDLabel = new JLabel();
+                myTeamIDLabel.setPreferredSize(new Dimension(200, 25));
+                JLabel myTeamLabel = new JLabel("My teams");
+                myTeamsCombo = new JComboBox();
+                myTeamsCombo.addActionListener(new ActionListener() {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        String team = myTeamsCombo.getSelectedItem().toString();
+                        myTeamIDLabel.setText(myTeams.get(team));
+                    }
+                });
+                updateMyTeams();
+
+
+                myTeamPanel.add(myTeamLabel);
+                myTeamPanel.add(myTeamsCombo);
+                myTeamPanel.add(myTeamIDLabel);
+                JButton copyTeamIDBtn = new JButton("Copy team ID");
+                copyTeamIDBtn.addActionListener(new ActionListener() {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        String team = myTeamsCombo.getSelectedItem().toString();
+                        String teamKey = myTeams.get(team);
+                        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+                        clipboard.setContents(new StringSelection(teamKey), null);
+                    }
+                });
+                if(!isDarkTheme && !isNativeTheme) {
+                    copyTeamIDBtn.setBackground(Color.decode("#005a70"));
+                    copyTeamIDBtn.setForeground(Color.white);
+                }
+                myTeamPanel.add(copyTeamIDBtn);
+                myTeamFieldset.add(myTeamPanel);
+                panel.add(myTeamFieldset);
+
+                GridLayout joinTeamGrid = new GridLayout(4, 2);
+                JPanel joinTeamPanel = new JPanel(joinTeamGrid);
+                JPanel joinTeamFieldset = new JPanel();
+                joinTeamFieldset.setBorder(BorderFactory.createTitledBorder("Join Team"));
+                joinTeamFieldset.setPreferredSize(new Dimension(600, 170));
+                JLabel joinTeamNameLabel = new JLabel("Team name");
+                joinTeamNameLabel.setPreferredSize(new Dimension(200, 25));
+                joinTeamName = new JTextField();
+                joinTeamName.setEnabled(false);
+                joinTeamName.setPreferredSize(new Dimension(200, 25));
+                joinTeamPanel.add(joinTeamNameLabel);
+                joinTeamPanel.add(joinTeamName);
+
+                JLabel teamIDLabel = new JLabel("Team ID");
+                teamIDLabel.setPreferredSize(new Dimension(200, 25));
+                joinTeamIDText = new JTextField();
+                joinTeamIDText.setEnabled(false);
+                joinTeamIDText.setPreferredSize(new Dimension(200, 25));
+                joinTeamPanel.add(teamIDLabel);
+                joinTeamPanel.add(joinTeamIDText);
+
+                joinTeamBtn = new JButton("Join team");
+                JLabel joinTeamStatus = new JLabel();
+                joinTeamBtn.addActionListener(new ActionListener() {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        if(joinTeamName.getText().length() == 0) {
+                            joinTeamStatus.setText("Please enter a team name");
+                            return;
+                        }
+                        String teamKey = joinTeamIDText.getText();
+                        String teamName = newTeamName.getText().trim();
+                        if(teamKey.length() != 64) {
+                            joinTeamStatus.setText("Invalid team ID");
+                            return;
+                        }
+                        joinTeam(teamName, teamKey);
+                    }
+                });
+                joinTeamBtn.setEnabled(false);
+                if(!isDarkTheme && !isNativeTheme) {
+                    joinTeamBtn.setBackground(Color.decode("#005a70"));
+                    joinTeamBtn.setForeground(Color.white);
+                }
+                joinTeamPanel.add(new JLabel());
+                joinTeamPanel.add(joinTeamBtn);
+                joinTeamPanel.add(new JLabel());
+                joinTeamPanel.add(joinTeamStatus);
+                joinTeamFieldset.add(joinTeamPanel);
+                panel.add(joinTeamFieldset);
+
                 callbacks.addSuiteTab(BurpExtender.this);
             }
         });
     }
-
+    private void updateMyTeams() {
+        myTeamsCombo.removeAllItems();
+        for(Map.Entry<String, String> e : myTeams.entrySet()) {
+            String teamName = e.getKey();
+            String teamID = e.getValue();
+            myTeamsCombo.addItem(teamName);
+        }
+    }
     public void joinTeam(String teamName, String teamID) {
         if(socket.connected()) {
-            socket.emit("subscribe", teamID);
+            socket.emit("subscribe", teamID, teamName);
+            myTeams.put(teamName, teamID);
+            updateMyTeams();
         } else {
             teamStatus.setText("Unable to join team. Not connected.");
         }
@@ -196,6 +311,9 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
         disconnectBtn.setEnabled(true);
         createTeamBtn.setEnabled(true);
         newTeamName.setEnabled(true);
+        joinTeamIDText.setEnabled(true);
+        joinTeamBtn.setEnabled(true);
+        joinTeamName.setEnabled(true);
         stdout.println("Connected.");
     }
 
@@ -206,6 +324,9 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
         disconnectBtn.setEnabled(false);
         createTeamBtn.setEnabled(false);
         newTeamName.setEnabled(false);
+        joinTeamIDText.setEnabled(false);
+        joinTeamBtn.setEnabled(false);
+        joinTeamName.setEnabled(false);
         stdout.println("Disconnected.");
     }
 
