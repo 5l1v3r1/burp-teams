@@ -1,5 +1,6 @@
 package burp;
 
+import com.sun.scenario.effect.impl.sw.java.JSWBlend_COLOR_BURNPeer;
 import io.socket.client.IO;
 import io.socket.client.Socket;
 import io.socket.emitter.Emitter;
@@ -137,6 +138,7 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                         socket.connect();
                     }
                 });
+
                 if(!isDarkTheme && !isNativeTheme) {
                     connectBtn.setBackground(Color.decode("#005a70"));
                     connectBtn.setForeground(Color.white);
@@ -205,14 +207,13 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                 myTeamsCombo.addActionListener(new ActionListener() {
                     @Override
                     public void actionPerformed(ActionEvent e) {
-                        if(myTeamsCombo.getItemCount() > 0) {
+                        if(myTeamsCombo.getItemCount() > 0 && myTeamsCombo.getSelectedIndex() != 0) {
                             String team = myTeamsCombo.getSelectedItem().toString();
                             myTeamIDLabel.setText(myTeams.get(team));
                         }
                     }
                 });
                 updateMyTeams();
-
 
                 myTeamPanel.add(myTeamLabel);
                 myTeamPanel.add(myTeamsCombo);
@@ -221,10 +222,12 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                 copyTeamIDBtn.addActionListener(new ActionListener() {
                     @Override
                     public void actionPerformed(ActionEvent e) {
-                        String team = myTeamsCombo.getSelectedItem().toString();
-                        String teamKey = myTeams.get(team);
-                        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-                        clipboard.setContents(new StringSelection(teamKey), null);
+                        if(myTeamsCombo.getItemCount() > 0 && myTeamsCombo.getSelectedIndex() != 0) {
+                            String team = myTeamsCombo.getSelectedItem().toString();
+                            String teamKey = myTeams.get(team);
+                            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+                            clipboard.setContents(new StringSelection(teamKey), null);
+                        }
                     }
                 });
                 if(!isDarkTheme && !isNativeTheme) {
@@ -292,6 +295,7 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
     }
     private void updateMyTeams() {
         myTeamsCombo.removeAllItems();
+        myTeamsCombo.addItem("Please select a team");
         for(Map.Entry<String, String> entry : myTeams.entrySet()) {
             String teamName = entry.getKey();
             String teamID = entry.getValue();
@@ -303,6 +307,7 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
             socket.emit("subscribe", teamID, teamName);
             myTeams.put(teamName, teamID);
             updateMyTeams();
+            getUsers(teamID);
         } else {
             teamStatus.setText("Unable to join team. Not connected.");
         }
@@ -330,6 +335,17 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
         joinTeamBtn.setEnabled(false);
         joinTeamName.setEnabled(false);
         stdout.println("Disconnected.");
+    }
+
+    public ArrayList<String> getUsers(String teamID) {
+        Emitter emitter = socket.emit("get users", teamID);
+        emitter.on("return users", new Emitter.Listener() {
+            @Override
+            public void call(Object... args) {
+                System.out.println("Msg:"+args[0]);
+            }
+        });
+        return null;
     }
 
     private String generateTeamKey() {
