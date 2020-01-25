@@ -1,3 +1,5 @@
+#node
+server/mode_modules/
 
 #Build directories
 bin/
