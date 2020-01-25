@@ -5,6 +5,8 @@ import io.socket.client.IO;
 import io.socket.client.Socket;
 import io.socket.emitter.Emitter;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import javax.swing.*;
 import java.awt.*;
@@ -19,7 +21,7 @@ import java.security.SecureRandom;
 import java.util.*;
 import java.util.List;
 
-public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListener {
+public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListener, IContextMenuFactory {
     private IBurpExtenderCallbacks callbacks;
     private IExtensionHelpers helpers;
     private PrintWriter stderr;
@@ -51,6 +53,7 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
         this.callbacks = callbacks;
         callbacks.setExtensionName("Burp Teams");
         callbacks.registerExtensionStateListener(this);
+        callbacks.registerContextMenuFactory(this);
         SwingUtilities.invokeLater(new Runnable() {
             public void run() {
                 final int componentWidth = 220;
@@ -134,6 +137,22 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                                 disconnect();
                                 status.setText("Error. Disconnected.");
                             }
+                        }).on("call send to repeater", new Emitter.Listener() {
+                            @Override
+
+                            public void call(Object... args) {
+                                JSONObject obj = (JSONObject)args[0];
+                                String teamID = obj.getString("teamID");
+                                for(Map.Entry<String, String> entry : myTeams.entrySet()) {
+                                    if(entry.getValue().length() != 64 && teamID.length() != 64) {
+                                       continue;
+                                    }
+                                    if (entry.getValue().equals(teamID)) {
+                                        byte[] message = (byte[]) args[1];
+                                        callbacks.sendToRepeater(obj.getString("host"), obj.getInt("port"), obj.getBoolean("isHttps"), message, obj.getString("caption"));
+                                    }
+                                }
+                            }
                         });
                         socket.connect();
                     }
@@ -210,6 +229,8 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                         if(myTeamsCombo.getItemCount() > 0 && myTeamsCombo.getSelectedIndex() != 0) {
                             String team = myTeamsCombo.getSelectedItem().toString();
                             myTeamIDLabel.setText(myTeams.get(team));
+                        } else if(myTeamsCombo.getItemCount() > 0 && myTeamsCombo.getSelectedIndex() == 0) {
+                            myTeamIDLabel.setText("");
                         }
                     }
                 });
@@ -269,12 +290,15 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                             return;
                         }
                         String teamKey = joinTeamIDText.getText();
-                        String teamName = newTeamName.getText().trim();
+                        String teamName = joinTeamName.getText().trim();
                         if(teamKey.length() != 64) {
                             joinTeamStatus.setText("Invalid team ID");
                             return;
                         }
                         joinTeam(teamName, teamKey);
+                        joinTeamStatus.setText("Sucessfully joined team.");
+                        joinTeamIDText.setText("");
+                        joinTeamName.setText("");
                     }
                 });
                 joinTeamBtn.setEnabled(false);
@@ -337,15 +361,9 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
         stdout.println("Disconnected.");
     }
 
-    public ArrayList<String> getUsers(String teamID) {
+    public Emitter getUsers(String teamID) {
         Emitter emitter = socket.emit("get users", teamID);
-        emitter.on("return users", new Emitter.Listener() {
-            @Override
-            public void call(Object... args) {
-                System.out.println("Msg:"+args[0]);
-            }
-        });
-        return null;
+        return emitter;
     }
 
     private String generateTeamKey() {
@@ -359,6 +377,52 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
         }
         secureRandom.nextBytes(randomBytes);
         return DigestUtils.sha256Hex(helpers.bytesToString(randomBytes));
+    }
+
+    public List<JMenuItem> createMenuItems(IContextMenuInvocation invocation) {
+        switch (invocation.getInvocationContext()) {
+            case IContextMenuInvocation.CONTEXT_MESSAGE_EDITOR_REQUEST:
+            case IContextMenuInvocation.CONTEXT_MESSAGE_VIEWER_RESPONSE:
+                break;
+            default:
+                return null;
+        }
+        List<JMenuItem> menusList = new ArrayList<JMenuItem>();
+        byte[] message = invocation.getSelectedMessages()[0].getRequest();
+        IHttpService httpService = invocation.getSelectedMessages()[0].getHttpService();
+        IRequestInfo analyzedRequest = helpers.analyzeRequest(invocation.getSelectedMessages()[0].getHttpService(),message);
+        JMenu menu = new JMenu("Burp teams");
+        for(Map.Entry<String, String> entry : myTeams.entrySet()) {
+            String teamName = entry.getKey();
+            String teamID = entry.getValue();
+            JMenu submenu = new JMenu(teamName);
+            JMenu sendToRepeaterMenu = new JMenu("Send to repeater");
+            Emitter emitter = getUsers(teamID);
+            emitter.on("return users", new Emitter.Listener() {
+                @Override
+                public void call(Object... args) {
+                    JMenuItem allUsers = new JMenuItem("All users");
+                    allUsers.addActionListener(new ActionListener() {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            String caption = JOptionPane.showInputDialog("Please enter a caption for the repeater tab");
+                            socket.emit("send to repeater", teamID, httpService.getHost(), httpService.getPort(), httpService.getProtocol().equals("https"), message, caption, "All users");
+                        }
+                    });
+                    sendToRepeaterMenu.add(allUsers);
+                    JSONArray users = (JSONArray) args[0];
+                    for(int i=0;i< users.length(); i++) {
+                        String user = users.getString(i);
+                        JMenuItem userMenuItem = new JMenuItem(user);
+                        sendToRepeaterMenu.add(userMenuItem);
+                    }
+                }
+            });
+            submenu.add(sendToRepeaterMenu);
+            menu.add(submenu);
+        }
+        menusList.add(menu);
+        return menusList;
     }
 
     @Override
