@@ -14,7 +14,7 @@ io.sockets.on('connection', function(socket) {
 	    for(var clientID in clients) {
 	    	users.push(io.sockets.connected[clientID].name);
 	    }
-	    socket.emit('return users', users.sort());	
+	    socket.emit('return users', users.sort(), teamID);	
 	});
 
 	socket.on('send to repeater', function(teamID, host, port, isHttps, message, caption, user){

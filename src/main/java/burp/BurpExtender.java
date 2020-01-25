@@ -362,7 +362,6 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
             socket.emit("subscribe", teamID, teamName);
             myTeams.put(teamName, teamID);
             updateMyTeams();
-            getUsers(teamID);
         } else {
             teamStatus.setText("Unable to join team. Not connected.");
         }
@@ -421,7 +420,6 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
         List<JMenuItem> menusList = new ArrayList<JMenuItem>();
         byte[] message = invocation.getSelectedMessages()[0].getRequest();
         IHttpService httpService = invocation.getSelectedMessages()[0].getHttpService();
-        IRequestInfo analyzedRequest = helpers.analyzeRequest(invocation.getSelectedMessages()[0].getHttpService(),message);
         JMenu menu = new JMenu("Burp teams");
         for(Map.Entry<String, String> entry : myTeams.entrySet()) {
             String teamName = entry.getKey();
@@ -434,6 +432,10 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
             emitter.on("return users", new Emitter.Listener() {
                 @Override
                 public void call(Object... args) {
+                    String checkTeamID = args[1].toString();
+                    if(!checkTeamID.equals(teamID)) {
+                        return;
+                    }
                     JMenuItem sendToRepeaterAllUsers = new JMenuItem("All users");
                     sendToRepeaterAllUsers.addActionListener(new ActionListener() {
                         @Override
