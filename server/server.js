@@ -8,6 +8,10 @@ io.sockets.on('connection', function(socket) {
 	    console.log(socket.name + ' is ' + 'joining team', teamName);
 	    socket.join(teamID);
 	});
+	socket.on('unsubscribe', function(teamID, teamName) {
+	    console.log(socket.name + ' is ' + 'leaving team', teamName);
+	    socket.leave(teamID);
+	});
 
 	socket.on('get users', function(teamID) {
 	    var clients = io.sockets.adapter.rooms[teamID].sockets, users = [];

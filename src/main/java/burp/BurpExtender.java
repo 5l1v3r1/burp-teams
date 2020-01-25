@@ -6,6 +6,7 @@ import io.socket.emitter.Emitter;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.json.JSONTokener;
 
 import javax.swing.*;
 import java.awt.*;
@@ -43,6 +44,8 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
     private TreeMap<String, String> myTeams = new TreeMap<>();
     private JComboBox myTeamsCombo;
     private JLabel myTeamIDLabel;
+    private JTextField serverAddress;
+    private JTextField name;
 
     @Override
     public void registerExtenderCallbacks(final IBurpExtenderCallbacks callbacks) {
@@ -65,14 +68,14 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                 JPanel configurePanel = new JPanel(configureGrid);
                 JLabel serverAddressLabel = new JLabel("Server address");
                 serverAddressLabel.setPreferredSize(new Dimension(componentWidth, 25));
-                JTextField serverAddress = new JTextField();
+                serverAddress = new JTextField();
                 serverAddress.setPreferredSize(new Dimension(componentWidth, 25));
                 serverAddress.setText("http://localhost:3000");
                 configurePanel.add(serverAddressLabel);
                 configurePanel.add(serverAddress);
                 JLabel nameLabel = new JLabel("Your name");
                 nameLabel.setPreferredSize(new Dimension(componentWidth, 25));
-                JTextField name = new JTextField();
+                name = new JTextField();
                 name.setPreferredSize(new Dimension(componentWidth, 25));
                 configurePanel.add(nameLabel);
                 configurePanel.add(name);
@@ -148,7 +151,11 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                                     }
                                     if (entry.getValue().equals(teamID)) {
                                         byte[] message = (byte[]) args[1];
-                                        callbacks.sendToRepeater(obj.getString("host"), obj.getInt("port"), obj.getBoolean("isHttps"), message, obj.getString("caption"));
+                                        String caption = obj.getString("caption");
+                                        if(caption.length() == 0) {
+                                            caption = null;
+                                        }
+                                        callbacks.sendToRepeater(obj.getString("host"), obj.getInt("port"), obj.getBoolean("isHttps"), message, caption);
                                     }
                                 }
                             }
@@ -270,6 +277,7 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                 myTeamPanel.add(myTeamLabel);
                 myTeamPanel.add(myTeamsCombo);
                 myTeamPanel.add(myTeamIDLabel);
+                JPanel myTeamsButtonsPanel = new JPanel();
                 JButton copyTeamIDBtn = new JButton("Copy team ID");
                 copyTeamIDBtn.addActionListener(new ActionListener() {
                     @Override
@@ -286,7 +294,28 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                     copyTeamIDBtn.setBackground(Color.decode("#005a70"));
                     copyTeamIDBtn.setForeground(Color.white);
                 }
-                myTeamPanel.add(copyTeamIDBtn);
+                JButton leaveTeamBtn = new JButton("Leave team");
+                if(!isDarkTheme && !isNativeTheme) {
+                    leaveTeamBtn.setBackground(Color.decode("#005a70"));
+                    leaveTeamBtn.setForeground(Color.white);
+                }
+                leaveTeamBtn.addActionListener(new ActionListener() {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        if(myTeamsCombo.getItemCount() > 0 && myTeamsCombo.getSelectedIndex() != 0) {
+                            int input = JOptionPane.showConfirmDialog(null, "Are you sure you want to leave this team?");
+                            if (input == 0) {
+                                String teamName = myTeamsCombo.getSelectedItem().toString();
+                                socket.emit("unsubscribe", myTeams.get(teamName), teamName);
+                                myTeams.remove(teamName);
+                                updateMyTeams();
+                            }
+                        }
+                    }
+                });
+                myTeamsButtonsPanel.add(leaveTeamBtn);
+                myTeamsButtonsPanel.add(copyTeamIDBtn);
+                myTeamPanel.add(myTeamsButtonsPanel);
                 myTeamFieldset.add(myTeamPanel);
                 panel.add(myTeamFieldset);
 
@@ -343,7 +372,7 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                 joinTeamPanel.add(joinTeamStatus);
                 joinTeamFieldset.add(joinTeamPanel);
                 panel.add(joinTeamFieldset);
-
+                loadSettings();
                 callbacks.addSuiteTab(BurpExtender.this);
             }
         });
@@ -389,6 +418,35 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
         joinTeamBtn.setEnabled(false);
         joinTeamName.setEnabled(false);
         stdout.println("Disconnected.");
+    }
+
+    public void loadSettings() {
+        String json = callbacks.loadExtensionSetting("settings");
+        if(json != null && json.length() > 0) {
+            JSONTokener tokener = new JSONTokener(json);
+            JSONObject settings = new JSONObject(tokener);
+            serverAddress.setText(settings.getString("server"));
+            name.setText(settings.getString("name"));
+            for(ActionListener a: connectBtn.getActionListeners()) {
+                a.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, null) {
+                });
+            }
+            socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
+                @Override
+                public void call(Object... args) {
+                    if(socket.connected()) {
+                        JSONObject myTeamsJSON = settings.getJSONObject("myTeams");
+                        Iterator<String> keys = myTeamsJSON.keys();
+                        while(keys.hasNext()) {
+                            String key = keys.next();
+                            joinTeam(key, myTeamsJSON.getString(key));
+                        }
+                        updateMyTeams();
+                    }
+                }
+
+            });
+        }
     }
 
     public Emitter getUsers(String teamID) {
@@ -500,8 +558,10 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                     }
                 }
             });
-            submenu.add(sendToIntruderMenu);
-            submenu.add(sendToRepeaterMenu);
+            if(httpService != null) {
+                submenu.add(sendToIntruderMenu);
+                submenu.add(sendToRepeaterMenu);
+            }
             submenu.add(sendToComparerMenu);
             menu.add(submenu);
         }
@@ -522,10 +582,15 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
 
     @Override
     public void extensionUnloaded() {
-        stdout.println("Burp teams unloaded");
+        JSONObject settings = new JSONObject();
+        settings.put("server", serverAddress.getText());
+        settings.put("myTeams", myTeams);
+        settings.put("name", name.getText());
+        callbacks.saveExtensionSetting("settings", settings.toString());
         if(socket != null && socket.connected()) {
             disconnect();
         }
+        stdout.println("Burp teams unloaded");
     }
 
 
