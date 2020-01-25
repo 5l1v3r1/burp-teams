@@ -1,6 +1,5 @@
 package burp;
 
-import com.sun.scenario.effect.impl.sw.java.JSWBlend_COLOR_BURNPeer;
 import io.socket.client.IO;
 import io.socket.client.Socket;
 import io.socket.emitter.Emitter;
@@ -150,6 +149,38 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                                     if (entry.getValue().equals(teamID)) {
                                         byte[] message = (byte[]) args[1];
                                         callbacks.sendToRepeater(obj.getString("host"), obj.getInt("port"), obj.getBoolean("isHttps"), message, obj.getString("caption"));
+                                    }
+                                }
+                            }
+                        }).on("call send to intruder", new Emitter.Listener() {
+                            @Override
+
+                            public void call(Object... args) {
+                                JSONObject obj = (JSONObject)args[0];
+                                String teamID = obj.getString("teamID");
+                                for(Map.Entry<String, String> entry : myTeams.entrySet()) {
+                                    if(entry.getValue().length() != 64 && teamID.length() != 64) {
+                                        continue;
+                                    }
+                                    if (entry.getValue().equals(teamID)) {
+                                        byte[] message = (byte[]) args[1];
+                                        callbacks.sendToIntruder(obj.getString("host"), obj.getInt("port"), obj.getBoolean("isHttps"), message);
+                                    }
+                                }
+                            }
+                        }).on("call send to comparer", new Emitter.Listener() {
+                            @Override
+
+                            public void call(Object... args) {
+                                JSONObject obj = (JSONObject)args[0];
+                                String teamID = obj.getString("teamID");
+                                for(Map.Entry<String, String> entry : myTeams.entrySet()) {
+                                    if(entry.getValue().length() != 64 && teamID.length() != 64) {
+                                        continue;
+                                    }
+                                    if (entry.getValue().equals(teamID)) {
+                                        byte[] message = (byte[]) args[1];
+                                        callbacks.sendToComparer(message);
                                     }
                                 }
                             }
@@ -396,20 +427,22 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
             String teamName = entry.getKey();
             String teamID = entry.getValue();
             JMenu submenu = new JMenu(teamName);
-            JMenu sendToRepeaterMenu = new JMenu("Send to repeater");
+            JMenu sendToRepeaterMenu = new JMenu("Send to Repeater");
+            JMenu sendToIntruderMenu = new JMenu("Send to Intruder");
+            JMenu sendToComparerMenu = new JMenu("Send to Comparer");
             Emitter emitter = getUsers(teamID);
             emitter.on("return users", new Emitter.Listener() {
                 @Override
                 public void call(Object... args) {
-                    JMenuItem allUsers = new JMenuItem("All users");
-                    allUsers.addActionListener(new ActionListener() {
+                    JMenuItem sendToRepeaterAllUsers = new JMenuItem("All users");
+                    sendToRepeaterAllUsers.addActionListener(new ActionListener() {
                         @Override
                         public void actionPerformed(ActionEvent e) {
                             String caption = JOptionPane.showInputDialog("Please enter a caption for the repeater tab");
                             socket.emit("send to repeater", teamID, httpService.getHost(), httpService.getPort(), httpService.getProtocol().equals("https"), message, caption, "All users");
                         }
                     });
-                    sendToRepeaterMenu.add(allUsers);
+                    sendToRepeaterMenu.add(sendToRepeaterAllUsers);
                     JSONArray users = (JSONArray) args[0];
                     for(int i=0;i< users.length(); i++) {
                         String user = users.getString(i);
@@ -423,9 +456,51 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                         });
                         sendToRepeaterMenu.add(userMenuItem);
                     }
+
+                    JMenuItem sendToIntruderAllUsers = new JMenuItem("All users");
+                    sendToIntruderAllUsers.addActionListener(new ActionListener() {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            socket.emit("send to intruder", teamID, httpService.getHost(), httpService.getPort(), httpService.getProtocol().equals("https"), message, "All users");
+                        }
+                    });
+                    sendToIntruderMenu.add(sendToIntruderAllUsers);
+                    for(int i=0;i< users.length(); i++) {
+                        String user = users.getString(i);
+                        JMenuItem userMenuItem = new JMenuItem(user);
+                        userMenuItem.addActionListener(new ActionListener() {
+                            @Override
+                            public void actionPerformed(ActionEvent e) {
+                                socket.emit("send to intruder", teamID, httpService.getHost(), httpService.getPort(), httpService.getProtocol().equals("https"), message, user);
+                            }
+                        });
+                        sendToIntruderMenu.add(userMenuItem);
+                    }
+
+                    JMenuItem sendToComparerAllUsers = new JMenuItem("All users");
+                    sendToComparerAllUsers.addActionListener(new ActionListener() {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            socket.emit("send to comparer", teamID, message, "All users");
+                        }
+                    });
+                    sendToComparerMenu.add(sendToComparerAllUsers);
+                    for(int i=0;i< users.length(); i++) {
+                        String user = users.getString(i);
+                        JMenuItem userMenuItem = new JMenuItem(user);
+                        userMenuItem.addActionListener(new ActionListener() {
+                            @Override
+                            public void actionPerformed(ActionEvent e) {
+                                socket.emit("send to comparer", teamID, message, user);
+                            }
+                        });
+                        sendToComparerMenu.add(userMenuItem);
+                    }
                 }
             });
+            submenu.add(sendToIntruderMenu);
             submenu.add(sendToRepeaterMenu);
+            submenu.add(sendToComparerMenu);
             menu.add(submenu);
         }
         menusList.add(menu);
