@@ -414,6 +414,13 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                     for(int i=0;i< users.length(); i++) {
                         String user = users.getString(i);
                         JMenuItem userMenuItem = new JMenuItem(user);
+                        userMenuItem.addActionListener(new ActionListener() {
+                            @Override
+                            public void actionPerformed(ActionEvent e) {
+                                String caption = JOptionPane.showInputDialog("Please enter a caption for the repeater tab");
+                                socket.emit("send to repeater", teamID, httpService.getHost(), httpService.getPort(), httpService.getProtocol().equals("https"), message, caption, user);
+                            }
+                        });
                         sendToRepeaterMenu.add(userMenuItem);
                     }
                 }
