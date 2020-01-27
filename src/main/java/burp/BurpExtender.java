@@ -15,7 +15,9 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.PrintWriter;
+import java.net.InetAddress;
 import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.*;
@@ -70,7 +72,13 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                 serverAddressLabel.setPreferredSize(new Dimension(componentWidth, 25));
                 serverAddress = new JTextField();
                 serverAddress.setPreferredSize(new Dimension(componentWidth, 25));
-                serverAddress.setText("http://localhost:3000");
+                InetAddress inetAddress = null;
+                try {
+                    inetAddress = InetAddress.getLocalHost();
+                    serverAddress.setText("http://"+inetAddress.getHostAddress()+":3000");
+                } catch (UnknownHostException e) {
+                    stderr.println("Error getting ip:"+e.toString());
+                }
                 configurePanel.add(serverAddressLabel);
                 configurePanel.add(serverAddress);
                 JLabel nameLabel = new JLabel("Your name");
@@ -431,21 +439,23 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                 a.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, null) {
                 });
             }
-            socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
-                @Override
-                public void call(Object... args) {
-                    if(socket.connected()) {
-                        JSONObject myTeamsJSON = settings.getJSONObject("myTeams");
-                        Iterator<String> keys = myTeamsJSON.keys();
-                        while(keys.hasNext()) {
-                            String key = keys.next();
-                            joinTeam(key, myTeamsJSON.getString(key));
+            if(socket != null) {
+                socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
+                    @Override
+                    public void call(Object... args) {
+                        if (socket.connected()) {
+                            JSONObject myTeamsJSON = settings.getJSONObject("myTeams");
+                            Iterator<String> keys = myTeamsJSON.keys();
+                            while (keys.hasNext()) {
+                                String key = keys.next();
+                                joinTeam(key, myTeamsJSON.getString(key));
+                            }
+                            updateMyTeams();
                         }
-                        updateMyTeams();
                     }
-                }
 
-            });
+                });
+            }
         }
     }
 
@@ -506,6 +516,9 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                     JSONArray users = (JSONArray) args[0];
                     for(int i=0;i< users.length(); i++) {
                         String user = users.getString(i);
+                        if(users.equals(name.getText())) {
+                            continue;
+                        }
                         JMenuItem userMenuItem = new JMenuItem(user);
                         userMenuItem.addActionListener(new ActionListener() {
                             @Override
@@ -527,6 +540,9 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                     sendToIntruderMenu.add(sendToIntruderAllUsers);
                     for(int i=0;i< users.length(); i++) {
                         String user = users.getString(i);
+                        if(users.equals(name.getText())) {
+                            continue;
+                        }
                         JMenuItem userMenuItem = new JMenuItem(user);
                         userMenuItem.addActionListener(new ActionListener() {
                             @Override
@@ -547,6 +563,9 @@ public class BurpExtender implements IBurpExtender, ITab, IExtensionStateListene
                     sendToComparerMenu.add(sendToComparerAllUsers);
                     for(int i=0;i< users.length(); i++) {
                         String user = users.getString(i);
+                        if(users.equals(name.getText())) {
+                            continue;
+                        }
                         JMenuItem userMenuItem = new JMenuItem(user);
                         userMenuItem.addActionListener(new ActionListener() {
                             @Override
